@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import './App.css';
+import queryString from 'query-string';
 
 let defaultStyle = {
   color: '#EDF2F7'
@@ -12,7 +13,7 @@ let fakeServerData = {
       {
         name: 'My Favourites',
         songs: [
-          {name:'Caledonia', duration: 200}, 
+          {name:'Batman', duration: 200}, 
           {name:'Keep Ya Head Up', duration: 300}, 
           {name: 'Slippin', duration: 400}]
       },
@@ -76,8 +77,8 @@ class Playlist extends Component {
   render() {
     let playlist = this.props.playlist
     return(
-      <div style={{...defaultStyle, display:"inline-block", width: "25%"}}>
-        <img alt=''/>
+      <div style={{...defaultStyle, display:"inline-block", margin: '20px', width: "25%"}}>
+        <img alt='' src={playlist.imageUrl} style={{width: '160px'}}/>
         <h3>{playlist.name}</h3>
         <ul>
           {playlist.songs.map(song => 
@@ -98,24 +99,52 @@ class App extends Component {
     }
   }
   componentDidMount(){
-    setTimeout(()=>{ 
-      this.setState({serverData: fakeServerData});
-    }, 1000);
+
+    let parsed = queryString.parse(window.location.search)
+    let accessToken = parsed.access_token
+
+   // fetch the username
+    fetch('https://api.spotify.com/v1/me', {
+      headers: {'Authorization': 'Bearer ' + accessToken}
+    }).then(response => response.json())
+    .then(data => this.setState({user: {name: data.display_name}}))
+
+    // fetch the playlists - see https://developer.spotify.com/documentation/web-api/reference/playlists/
+
+      // https://developer.spotify.com/documentation/web-api/reference/playlists/get-a-list-of-current-users-playlists/ playlist read private may be an issue, let's see
+
+    fetch('https://api.spotify.com/v1/me/playlists', {
+      headers: {'Authorization': 'Bearer ' + accessToken}
+    }).then(response => response.json())
+    .then(data => {
+      return this.setState({
+        playlists: data.items.map(item => {
+          console.log(data.items)
+          return {
+            name: item.name,
+            songs: [],
+            imageUrl: item.images[0] ? item.images[0].url : ""
+          }
+        })
+      });
+    })
+
   }
   render() {
     // gets playlists to render, only keep if includes filterString
-    let playlistsToRender = this.state.serverData.user ? this.state.serverData.user.playlists
-      .filter(playlist => 
+    let playlistsToRender = 
+      this.state.user && this.state.playlists
+        ? this.state.playlists.filter(playlist => 
           playlist.name.toLowerCase().includes(
-            this.state.filterString.toLowerCase())
-    ) : []
+            this.state.filterString.toLowerCase())) 
+        : []
   
     return(
       <div className="App">
-        {this.state.serverData.user ?
+        {this.state.user ?
         <div>
           <h1 style={{...defaultStyle,'font-size': '54px' }}>
-            {this.state.serverData.user.name}'s Playlists
+            {this.state.user.name}'s Playlists
           </h1>
           <PlaylistCounter playlists={playlistsToRender}/>
           <HoursCounter playlists={playlistsToRender}/>
@@ -124,7 +153,9 @@ class App extends Component {
             <Playlist playlist={playlist}/>
           )}
           
-        </div> : <h1 style={defaultStyle}>Loading</h1>}
+        </div> : <button 
+          onClick={()=>window.location='http://localhost:8888/login'}
+            style={{padding: '20px', 'font-size': '30px','margin-top': '20px'}}>Sign in with Spotify</button>}
       </div>
     );
   }
